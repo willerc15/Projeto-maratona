@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sorteador de Questões </title>
+<style>
+/* ======== ESTILOS GLOBAIS ======== */
+:root{
+  --glass: rgba(255,255,255,0.12);
+  --glass-dark: rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin:0; padding:0;
+  display:flex; flex-direction:column; align-items:center;
+  min-height:100vh;
+  transition: background 0.5s, color 0.5s;
+}
+/* temas */
+body.dark { background: linear-gradient(135deg, #395a8f, #2e1f82, #291972); color:#fff; animation: bgGradient 12s ease infinite alternate; }
+body.light { background: linear-gradient(135deg, #aad4ff, #7792ca, #486ea8); color:#111; }
+@keyframes bgGradient { 0%{background-position:0% 50%;}100%{background-position:100% 50%;} }
+
+header {
+  text-align:center;
+  padding:18px 22px;
+  background:rgba(0,0,0,0.06);
+  width:100%;
+  display:flex; justify-content:space-between; align-items:center;
+  backdrop-filter:blur(6px);
+}
+header h1 { margin:0; font-size:1.6rem; font-weight:700; }
+
+/* Tema toggle */
+.theme-toggle {
+  font-size:1.1rem; background:none; border:none; cursor:pointer; transition: transform 0.25s;
+}
+.theme-toggle:hover { transform: rotate(18deg) scale(1.05); }
+
+/* HAMBURGER / MENU */
+.header-right {
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.hamburger {
+  width:40px; height:40px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  background: linear-gradient(135deg,#111827,#374151); color:#fff;
+  border:none; cursor:pointer; font-weight:700; box-shadow:0 6px 14px rgba(0,0,0,0.22);
+}
+.hamburger:hover{ transform:scale(1.03); }
+.menu {
+  position:absolute;
+  top:68px;
+  right:22px;
+  min-width:220px;
+  background: rgba(0,0,0,0.72);
+  color:#fff;
+  padding:10px;
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.36);
+  display:none;
+  z-index:50;
+}
+.menu button {
+  display:block;
+  width:100%;
+  text-align:left;
+  margin:6px 0;
+  background:transparent;
+  color:inherit;
+  padding:8px 10px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+}
+.menu button:hover{ background: rgba(255,255,255,0.06); }
+
+/* indicador de modo (pequeno badge no header) */
+.mode-badge {
+  font-size:0.85rem;
+  padding:6px 8px;
+  border-radius:8px;
+  background: rgba(255,255,255,0.08);
+  color:inherit;
+}
+
+/* rest of previous styles... */
+.container {
+  display:flex;
+  gap:18px;
+  margin:18px 0 40px 0;
+  width:92%;
+  max-width:1200px;
+  flex-wrap:wrap;
+}
+
+.card {
+  background: var(--glass);
+  border-radius:18px;
+  padding:18px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.28);
+  flex:1; min-width:300px;
+  transition: transform 0.28s ease, background 0.5s;
+}
+body.light .card { background: var(--glass-dark); box-shadow:0 4px 12px rgba(0,0,0,0.12);} 
+.card:hover { transform: translateY(-6px); }
+.card h2 { text-align:center; margin-bottom:12px; font-size:1.25rem; border-bottom:2px solid rgba(255,255,255,0.12); padding-bottom:8px; }
+body.light .card h2 { border-bottom:2px solid rgba(0,0,0,0.08); }
+
+#question-box {
+  font-size:1.05rem; text-align:center; min-height:100px; padding:14px;
+  border-radius:12px; background: rgba(0,0,0,0.28); margin-top:12px;
+  opacity:0; transform:translateY(10px); transition: all 0.45s ease;
+}
+body.light #question-box { background: rgba(255,255,255,0.04); }
+#question-box.show { opacity:1; transform:translateY(0); }
+
+/* ===== TIMER ===== */
+#timer-display { font-size:2rem; text-align:center; margin:12px 0; font-weight:700; }
+#timer-display.running { animation:pulse 1s infinite alternate; }
+@keyframes pulse { 0%{transform:scale(1);}100%{transform:scale(1.03);} }
+#timer-display.finished { animation: flash 0.5s alternate 6; color:#fff; }
+@keyframes flash { from{opacity:1;} to{opacity:0.2;} }
+
+/* HISTÓRICO */
+#history-list { max-height:140px; overflow-y:auto; padding-left:10px; list-style:none; margin:0; border:1px solid rgba(0,0,0,0.12); border-radius:10px; background: rgba(0,0,0,0.04); }
+#history-list li { background: rgba(255,255,255,0.06); margin:8px; padding:8px 12px; border-radius:8px; font-size:0.95rem; }
+body.light #history-list li { background: rgba(0,0,0,0.04); }
+
+/* PARTICIPANTES */
+#participants-list { list-style:none; padding-left:10px; max-height:300px; overflow-y:auto; margin-top:10px; }
+#participants-list li { display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.06); margin:8px 0; padding:8px 12px; border-radius:8px; font-size:0.95rem; }
+body.light #participants-list li { background: rgba(0,0,0,0.04); }
+
+input[type="text"], input[type="number"] { padding:6px; border-radius:6px; border:1px solid #ccc; }
+
+/* ===== BOTÕES ===== */
+
+button {
+  cursor: pointer;
+  border: none;
+  font-weight: 700;
+  transition: all 0.22s ease;
+  border-radius: 10px;
+  padding: 8px 14px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.22);
+  transform: translateY(0);
+  outline: none;
+}
+button:active {
+  transform: translateY(2px) scale(0.99);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+}
+button:focus{ box-shadow: 0 0 0 4px rgba(99,102,241,0.12); }
+
+/* Botões pequenos (filtros / reset) - tom AZUL */
+.small-btn {
+  font-size: 0.95rem;
+  background: linear-gradient(135deg,#3b82f6,#1e40af);
+  color: #fff;
+}
+.small-btn:hover { box-shadow: 0 0 16px #60a5fa; transform: translateY(-3px) scale(1.04); }
+
+/* Botão de destaque (sortear) - LARANJA/DOURADO */
+.medium-btn {
+  font-size: 1.15rem;
+  padding: 12px 24px;
+  background: linear-gradient(135deg,#f59e0b,#b45309);
+  color:#fff;
+}
+.medium-btn:hover { box-shadow: 0 0 22px #fbbf24; transform: translateY(-5px) scale(1.06); }
+
+/* Botões do timer - VERDE - class timer-btn */
+.timer-btn { background: linear-gradient(135deg,#16a34a,#065f46); color:#fff; }
+.timer-btn:hover { box-shadow: 0 0 14px #34d399; transform: translateY(-3px) scale(1.03); }
+
+/* Botões rápidos do timer (30s,40s,50s) - estilo mais compacto */
+.timer-quick { padding:6px 10px; font-size:0.95rem; border-radius:8px; }
+
+/* Botões de participantes - rosa / remover vermelho */
+.participant-btn1 { background: linear-gradient(135deg,#d13131,#bf080e); color:#000000; }
+.participant-btn { background: linear-gradient(135deg,#48ec92,#18be4f); color:#000000; }
+.participant-btn:hover { box-shadow: 0 0 14px #65dc93; }
+.remove-btn { background: linear-gradient(135deg,#e70d0d,#d3151e); color:#0a0a0a; }
+.remove-btn:hover{ box-shadow: 0 0 14px #5f0f0f; }
+
+/* pequenos ajustes de espaçamento para botões dentro dos cards */
+.top-controls { display:flex; justify-content:center; gap:10px; margin-bottom:10px; }
+.controls { display:flex; justify-content:center; margin-bottom:10px; }
+.card button { margin:4px 6px; }
+
+/* ===== FILTRO DE CAPÍTULOS ===== */
+.chapter-filter .checkboxes {
+  display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:10px; padding:10px; background: rgba(0,0,0,0.08); border-radius:10px; transition: all 0.3s ease;
+}
+.chapter-filter label { background: rgba(255,255,255,0.06); padding:6px 10px; border-radius:8px; cursor:pointer; transition: background 0.2s, transform 0.2s; }
+.chapter-filter input[type="checkbox"] { margin-right:6px; }
+.chapter-filter label:hover { transform: scale(1.03); }
+
+/* responsividade simples */
+@media (max-width:900px){ .container{flex-direction:column; align-items:stretch;} }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <h1>📖 Sorteador de Questões </h1>
+  <div class="header-right">
+    <!-- indicador de modo atual -->
+    <div id="mode-badge" class="mode-badge">Modo: Normal</div>
+
+    <!-- botão de tema -->
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Alternar tema">🌙</button>
+
+    <!-- botão hambúrguer -->
+    <div style="position:relative;">
+      <button class="hamburger" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
+      <div id="top-menu" class="menu" role="menu" aria-hidden="true">
+        <button onclick="setModeNoAnswer()">Sorteador sem resposta</button>
+        <button onclick="openUserQuestionsPanel()">Inserir novas questões</button>
+        <button onclick="downloadPdf()">Download questões (PDF)</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== CONTAINER PRINCIPAL ===== -->
+<div class="container">
+
+  <!-- ===== CARD DE SORTEIO ===== -->
+  <div class="card">
+    <h2>Sorteio das questões</h2>
+
+    <!-- Filtro de capítulos + Reset lado a lado -->
+    <div class="top-controls">
+      <!-- small-btn: estilo azul definido no CSS -->
+      <button class="small-btn" onclick="toggleFilterPanel()">📂 Filtro de capítulos</button>
+      <button class="small-btn" onclick="resetQuestions()">🔄 Resetar Questões</button>
+    </div>
+
+    <!-- Botão sortear abaixo, destacado (medium-btn laranja/dourado) -->
+    <div class="controls">
+      <button class="medium-btn" onclick="drawQuestion()">🎲 Sortear Questão</button>
+    </div>
+
+    <!-- Painel de checkboxes oculto (gerado via JS) -->
+    <div class="chapter-filter">
+      <div class="checkboxes" id="chapter-filter-container" style="display:none;">
+        <!-- Checkboxes serão gerados via JS em generateChapterCheckboxes() -->
+      </div>
+    </div>
+
+    <!-- Caixa da questão -->
+    <div id="question-box">Clique em sortear para começar!</div>
+
+    <!-- botão revelar resposta (aparece apenas no modo sem resposta quando houver pergunta) -->
+    <div style="text-align:center; margin-top:8px;">
+      <button id="reveal-btn" class="small-btn" style="display:none;" onclick="revealAnswer()">🔓 Revelar resposta</button>
+    </div>
+
+  </div>
+
+  <!-- ===== CARD DE TIMER ===== -->
+  <div class="card">
+    <h2>Temporizador</h2>
+    <div id="timer-display">00:00</div>
+
+    <!-- Input para definir tempo manualmente -->
+    <label for="custom-time">Definir tempo (segundos): </label>
+    <input type="number" id="custom-time" min="1" placeholder="Ex: 50" style="width: 100px;">
+    <button class="timer-btn" onclick="setCustomTimer()">⏱️ Definir</button>
+
+    <!-- Botões rápidos 30/40/50 (timer-quick + timer-btn) -->
+    <div style="margin:10px 0; text-align:center;">
+      <button class="timer-btn timer-quick" onclick="setQuickTime(30)">30s</button>
+      <button class="timer-btn timer-quick" onclick="setQuickTime(40)">40s</button>
+      <button class="timer-btn timer-quick" onclick="setQuickTime(50)">50s</button>
+    </div>
+
+    <!-- Controles principais do timer -->
+    <div style="text-align:center;">
+      <button class="timer-btn" onclick="startTimer()">▶️ Iniciar</button>
+      <button class="timer-btn" onclick="pauseTimer()">⏸️ Pausar</button>
+      <button class="timer-btn" onclick="resetTimer()">⏹️ Resetar</button>
+    </div>
+
+    <!-- opções do bipe -->
+    <div style="margin-top:10px; text-align:center;">
+      <label style="margin-right:8px;"><input type="checkbox" id="beep-enabled" checked> Bipe nos últimos</label>
+      <input type="number" id="beep-start" value="5" min="1" style="width:60px;"> s
+      <div style="font-size:0.85rem; color:rgba(255,255,255,0.7); margin-top:6px;">(bipe configurável para os últimos segundos)</div>
+    </div>
+
+    <!-- som do alarme (já inclusos) -->
+    <audio id="alarm-sound">
+      <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+    </audio>
+  </div>
+
+  <!-- ===== HISTÓRICO DE QUESTÕES ===== -->
+  <div class="card">
+    <h2>Questões sorteadas</h2>
+    <ul id="history-list"></ul>
+  </div>
+
+  <!-- ===== PARTICIPANTES ===== -->
+  <div class="card">
+    <h2>Participantes</h2>
+    <!-- input simples + botão adicionar (participant-btn rosa) -->
+    <input type="text" id="participant-name" placeholder="Nome do participante">
+    <button class="participant-btn" onclick="addParticipant()">➕ Adicionar</button>
+    <ul id="participants-list"></ul>
+  </div>
+
+</div>
+
+<!-- rodapé -->
+<footer style="margin:18px 0 36px 0; color:rgba(0,0,0,0.55); font-size:0.95rem;">
+  2025 v1.4 
+</footer>
+
+<!-- ===== MODAL QUESTÕES DO USUÁRIO ===== -->
+<div id="user-questions-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.45); z-index:100; align-items:center; justify-content:center;">
+    <div style="background:#fff; color:#222; border-radius:14px; padding:28px; max-width:520px; width:92%; box-shadow:0 8px 32px rgba(0,0,0,0.22); position:relative;">
+      <h2 style="margin-top:0;">Inserir novas questões</h2>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <label style="white-space:nowrap;">Capítulo: <input type="text" id="user-chapter" style="width:80px; margin-left:6px;"></label>
+        <div style="font-size:0.85rem; color:#555;">(aplicado a todas as linhas abaixo)</div>
+      </div>
+      <div>
+        <label style="display:block; margin-bottom:6px;">Pergunta + resposta (uma por linha):</label>
+        <textarea id="user-question" rows="6" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc;" placeholder="Ex: Quem fez X? “Resposta”"></textarea>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button class="small-btn" onclick="addUserQuestion()">Adicionar</button>
+        <button class="small-btn" onclick="setUserQuestionsMode()">Usar apenas questões inseridas</button>
+        <button class="remove-btn" onclick="closeUserQuestionsPanel()">Fechar</button>
+      </div>
+      <button class="remove-btn" onclick="clearAllUserQuestions()" style="position:absolute; top:8px; right:8px; font-size:0.85rem;">Limpar tudo</button>
+      <div style="margin-top:12px;">
+        <strong>Questões inseridas:</strong>
+        <ul id="user-questions-list" style="max-height:160px; overflow-y:auto; font-size:0.95rem; padding-left:18px;"></ul>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Código revisado: corrige ordem de inicialização, persiste participantes, filtro,
+   histórico e estado do sorteio; reset limpa tudo. */
+
+/* ====== DADOS / ESTADO ====== */
+const allQuestions = [
+  {chapter:"1", question:"1- De onde o Senhor chamou e falou com moisés? “da tenda da congregação” 1.1"},
+  {chapter:"1", question:"2- O Senhor mandou moisés falar a quem sobre, quando algum de vós oferecer as ofertas, oferecereis de gado, vacas e ovelhas? “falai aos filhos de Israel” 1.2"},
+  {chapter:"1", question:"3- Quais as condições que o Senhor estabeleceu para a oferta de holocausto de gado? “sem mancha” 1.3"},
+  {chapter:"1", question:"4- Onde se deveria oferecer o gado macho? “à porta da tenda da congregação oferecerá” 1.3"},
+  {chapter:"1", question:"5- Onde o Senhor mandou colocar a mão para que o holocausto seja aceito por ele? “E porá sua mão sobre a cabeça do holocausto” 1.4"},
+  {chapter:"1", question:"6- Para o que o Senhor mandou colocar a mão sobre a cabeça do holocausto? “para que seja aceito por ele, para expiação” 1.4"},
+  {chapter:"1", question:"7- Perante quem deveriam degolar o bezerro? “perante o Senhor, e os filhos de Arão” 1.5"},
+  {chapter:"1", question:"8- Quem oferecerá o sangue e espargirá o sangue à roda sobre o altar? “os sacerdotes” 1.5"},
+  {chapter:"1", question:"9- Onde fica a roda sobre o altar, onde o sangue do bezerro deve ser oferecido pelos sacerdotes? “está diante da porta da tenda da congregação” 1.5"},
+  {chapter:"1", question:"10- Além de esfolar o holocausto o que mais deveria ser feito? “e o partirá nos seus pedaços” 1.6"},
+  {chapter:"1", question:"11- E os filhos de Arão, os sacerdotes, deverão colocar fogo sobre o altar pondo em ordem o que? “pondo em ordem a lenha sobre o fogo” 1.7"},
+  {chapter:"1", question:"12- Também os filhos de Arão, os sacerdotes, porão em ordem o que? “porão em ordem os pedaços” 1.8"},
+  {chapter:"1", question:"13- Sobre onde a cabeça e o redenho do gado deveriam ser colocados? “sobre a lenha que está no fogo em cima do altar” 1.8"},
+  {chapter:"1", question:"14- Holocausto é? “oferta queimada” 1.9"},
+  {chapter:"1", question:"15- O que deve ser feito com a fressura (entranhas) do gado oferecido? “lavar-se-ão com água” 1.9"},
+  {chapter:"1", question:"16- E se a oferta for gado miúdo, de ovelhas ou de cabras, oferecerá o que? “oferecerá macho sem mancha” 1.10"},
+  {chapter:"1", question:"17- A oferta de gado deve ser degolada ao lado do altar, para qual banda? “para a banda do norte” 1.11"},
+  {chapter:"1", question:"18- Depois de partir os pedaços como também a cabeça e o seu redenho, onde os sacerdotes os porão? “os porá em ordem sobre a lenha” 1.12"},
+  {chapter:"1", question:"19- Se a oferta for de aves o que deve ser oferecido? “oferecerá oferta de rolas ou de pombinhos” 1.14"},
+  {chapter:"1", question:"20- O que o sacerdote deve fazer com o holocausto de aves ao oferecer sobre o altar? “e lhe torcerá o pescoço com sua unha e a queimará sobre o altar” 1.15"},
+  {chapter:"1", question:"21- Onde o sangue da oferta das aves será espremido? “o seu sangue será espremido na parede do altar” 1.15"},
+  {chapter:"1", question:"22- Quanto ao holocausto de aves, o papo e as penas serão tiradas e serão lançadas onde? “lançará junto ao altar, para banda do oriente, no lugar da cinza” 1.16"},
+  {chapter:"1", question:"23- Ao fender a ave com suas asas, o que não deveria acontecer? “porém não a partirá” 1.17"},
+  {chapter:"2", question:"24- Quanto à oferta de manjares, o que deve ser oferecido? “a sua oferta será de flor de farinha” 2.1"},
+  {chapter:"2", question:"25- O que deve ser colocado sobre a oferta de manjares? “e porá um incenso sobre ela” 2.1"},
+  {chapter:"2", question:"26- A quem deve ser trazido o holocausto de aves e quem tomará dela um punhado da flor de farinha? “e trará aos filhos de Arão, os sacerdotes” 2.2"},
+  {chapter:"2", question:"27- Qual parte da oferta de manjares será de Arão e de seus filhos? “e o que sobrejar/sobrar” (resposta em 2.3 e 2.10)"},
+  {chapter:"2", question:"28- Quando a oferta for de manjares cozidos no forno, o que será? “será de bolos asmos, flor de farinha, amassados com azeite, e coscorões asmos untados com azeite” 2.5"},
+  {chapter:"2", question:"29- Como deve ser a oferta de manjares cozida na caçarola? “será de flor de farinha sem fermento, amassada com azeite” 2.5"},
+  {chapter:"2", question:"30- Como será a oferta de manjares da sertã? “far-se-á da flor de farinha com azeite” 2.7"},
+  {chapter:"2", question:"31- Qual oferta de manjares não deve ser oferecida ao Senhor? “Nenhuma oferta com fermento, nenhum mel” 2.11"},
+  {chapter:"2", question:"32- Deles, oferecereis ao Senhor por oferta das primícias, porém não subirão aonde? “porém sobre o altar não subirão por cheiro suave” 2.12"},
+  {chapter:"2", question:"33- O que não poderás deixar faltar na oferta de manjares? “e não deixará faltar à tua oferta de manjares o sal do concerto de Deus, em toda sua oferta oferecerás sal” 2.13"},
+  {chapter:"2", question:"34- Como deve ser a oferta de manjares das tuas primícias? “oferecerás a oferta de manjares das primícias de espigas verdes, tostadas ao fogo, isto é, do grão trilhado de espigas verdes cheias” 2.14"},
+  {chapter:"2", question:"35- Sobre a oferta de manjares das primícias, onde se colocará incenso? “e porá sobre ela incenso” 2.15"},
+  {chapter:"3", question:"36- Quanto à oferta de sacrifício pacífico (da paz, das graças), como o gado deveria ser? “macho ou fêmea sem mancha” 3.1"},
+  {chapter:"3", question:"37- Quanto ao sacrifício pacífico, onde o gado deverá ser degolado? “degolará diante da porta da tenda da congregação” 3.2"},
+  {chapter:"3", question:"38- Quais partes do gado os filhos de Arão queimarão sobre o altar no sacrifício pacífico? “gordura sobre a fressura, ambos os rins e a gordura que está sobre eles e sobre as tripas” 3.3-5"},
+  {chapter:"3", question:"39- Quanto ao sacrifício de paz, como deve ser o gado miúdo? “macho ou fêmea, sem mancha” 3.6"},
+  {chapter:"3", question:"40- Se o sacrifício for o cordeiro, onde os filhos de Arão espargirão seu sangue? “Sobre o altar em redor” 3.7-8"},
+  {chapter:"3", question:"41- Do sacrifício pacífico, quais partes do cordeiro serão oferecidas por oferta queimada? “a sua gordura, a cauda toda … a gordura que cobre a fressura” 3.9-11"},
+  {chapter:"3", question:"42- Quanto à oferta pacífica de cabra, como deve ser oferecida? “e porá sua mão sobre a cabeça e a degolará diante da tenda da congregação” 3.12-16"},
+  {chapter:"3", question:"43- Qual estatuto perpétuo será nas vossas gerações? “nenhuma gordura nem sangue comereis” 3.17"},
+  {chapter:"4", question:"44- Se o sacerdote ungido pecar para escândalo, o que deve ser oferecido? “oferecerá pelo seu pecado … um novilho sem mancha” 4.3"},
+  {chapter:"4", question:"45- O sacerdote ungido levará o novilho à tenda da congregação, e o sacerdote molhará o que no sangue? “e o sacerdote molhará seus dedos no sangue” 4.5"},
+  {chapter:"4", question:"46- Ao molhar seu dedo no sangue do novilho, por quantas vezes o sangue será espargido perante o Senhor? “sete vezes” 4.6"},
+  {chapter:"4", question:"47- Quanto ao sacrifício para o sacerdote, também porá o sacerdote daquele sangue onde? “sobre as pontas do altar do incenso aromático” 4.7"},
+  {chapter:"4", question:"48- O que deve ser feito com o resto do sangue do novilho? “derramará à base do altar do holocausto” 4.7"},
+  {chapter:"4", question:"49- O que deve ser tirado todo do novilho da expiação? “E toda a gordura… gordura que cobre a fressura e toda gordura que está sobre a fressura” 4.8"},
+  {chapter:"4", question:"50- Quanto ao sacrifício pacífico, o que o sacerdote fará com a parte do animal que lhe cabe? “o sacerdote queimará sobre o altar do holocausto” 4.10"},
+  {chapter:"4", question:"51- Quanto ao sacrifício do sacerdote, o couro do novilho e toda a sua carne, o que deve ser feito? “todo aquele novilho levará fora do arraial, a um lugar limpo, e o queimará com fogo” 4.12"},
+  {chapter:"4", question:"52- O que deve ser feito se a congregação pecar e o pecado for notório? “então a congregação oferecerá um novilho, por expiação do pecado” 4.14"},
+  {chapter:"4", question:"53- No sacrifício pelo povo, o sacerdote molhará o dedo sangue e o espargirá quantas vezes? “sete vezes” 4.17"},
+  {chapter:"4", question:"54- E fará a este novilho como fez ao novilho da expiação; o sacerdote fará o que? “e o sacerdote fará por eles a propiciação” 4.20"},
+  {chapter:"4", question:"55- Após feita a propiciação, o que acontecerá no sacrifício pelos erros do povo? “e lhes será perdoado os pecados” 4.20"},
+  {chapter:"4", question:"56- Qual animal deve ser ofertado quando um príncipe pecar? “então trará por sua oferta um bode” 4.23"},
+  {chapter:"4", question:"57- O que deve ser queimado na oferta do príncipe? “também queimará sobre o altar toda a sua gordura” 4.26"},
+  {chapter:"4", question:"58- Qual animal pode ser levado como oferta na expiação de qualquer pessoa? “então trará por sua oferta uma cabra fêmea sem mancha” 4.28"},
+  {chapter:"4", question:"59- O que deve ser feito com o resto do sangue da oferta de qualquer pessoa? “e todo o resto do seu sangue derramará à base do altar” 4.30"},
+  {chapter:"4", question:"60- Na oferta de qualquer pessoa qual outro animal poderia ser trazido além da cabra? “Mas, se pela sua oferta trouxer uma cabra para expiação, sem mancha a trará” 4.32"},
+  {chapter:"5", question:"61- O que acontecerá com a pessoa que ouvir uma voz de blasfêmia e não denunciar? “então levará a sua iniquidade” 5.1"},
+  {chapter:"5", question:"62- Quando alguma pessoa tocar em alguma coisa imunda, seja corpo de animal imundo … contudo ele será o que? “contudo será ele imundo e culpado” 5.2"},
+  {chapter:"5", question:"63- Quando tocar a imundície de um homem, seja qual for a sua imundícia com que se faça imundo o que acontecerá? “e o souber depois será culpado” 5.3"},
+  {chapter:"5", question:"64- O que acontecerá com o homem que pronuncia temerariamente juramento, e lhe for oculto? “culpado será numa dessas coisas” 5.4"},
+  {chapter:"5", question:"65- Sendo culpado numa destas coisas, o que deve ser feito? “confessará aquilo em que pecou” 5.5"},
+  {chapter:"5", question:"66- Quanto ao sacrifício pelos pecados ocultos, quais animais devem ser oferecidos? “uma fêmea de gado miúdo, uma cordeira ou uma cabrinha pelo pecado” 5.6"},
+  {chapter:"5", question:"67- Se a mão não alcançar o que basta para o gado miúdo, então o que deve ser levado para expiação? “então trará em expiação da culpa que cometeu… duas rolas ou duas pombinhos” 5.7"},
+  {chapter:"5", question:"68- Se a oferta de pombas e rolas não alcançar, o que deve ser ofertado? “Porém, se pela sua oferta não alcançar duas rolas ou dois pombinhos … oferta à décima parte de uma efa de flor de farinha” 5.11"},
+  {chapter:"5", question:"69- O que deve ser feito se uma pessoa cometer transgressão e pecar por ignorância nas coisas sagradas do Senhor? “então trará ao Senhor por expiação um carneiro sem mancha, conforme a sua estimação em siclos de prata” 5.15"},
+  {chapter:"5", question:"70- A quem pecar por ignorância nas coisas sagradas, ao restituir o que tirou deverá acrescentar quanto a mais? “e ainda mais acrescentará um quinto” 5.16"},
+  {chapter:"5", question:"72- Se alguma pessoa pecar e obrar contra algum de todos os mandamentos do Senhor, o que será imputado? “contudo será ele culpado, e levará a sua iniquidade” 5.17"},
+  {chapter:"6", question:"73- O Senhor falou a Moisés, para dar ordem a Arão e seus filhos sobre a lei do holocausto, o que é esta lei? “o holocausto será queimado sobre o altar toda a noite até pela manhã, e o fogo do altar arderá nele” 6.9"},
+  {chapter:"6", question:"74- O sacerdote vestirá roupas de linho, e vestirá calças de linho sobre a sua carne … o que ele levantará quando o fogo tiver consumido o holocausto? “e levantará a cinza” 6.10"},
+  {chapter:"6", question:"75- O sacerdote despirá as suas vestes e vestirá outras vestes, levará as cinzas para onde? “e levará a cinza fora do arraial para um lugar limpo” 6.11"},
+  {chapter:"6", question:"76- Quando o sacerdote deveria acender a lenha para manter o fogo no altar aceso? “mas o sacerdote acenderá lenha nele cada manhã” 6.12"}
+];
+//
+// elementos
+const historyList = document.getElementById("history-list");
+const questionBox = document.getElementById("question-box");
+const modeBadge = document.getElementById('mode-badge');
+
+// chaves localStorage
+const LS_KEYS = {
+  HIDE: 'maratona_hideAnswers',
+  FILTER: 'maratona_filteredChapters',
+  INITIAL_TIME: 'maratona_initialTime',
+  BEEP_ENABLED: 'maratona_beepEnabled',
+  BEEP_START: 'maratona_beepStart',
+  PARTICIPANTS: 'maratona_participants',
+  HISTORY: 'maratona_history_indices',
+  USER_QUESTIONS: 'maratona_userQuestions',
+  USER_MODE: 'maratona_userQuestionsMode'
+};
+
+let userQuestions = [];
+
+let hideAnswers = false;
+let filteredChapters = [];
+let participants = [];
+let initialTime = 0;
+let timeLeft = 0;
+let isRunning = false;
+let timer = null;
+let lastQuestionObj = null;
+let historyIndices = []; // armazena índices de allQuestions já sorteadas
+let remainingQuestions = [...allQuestions];
+
+/* ====== HELPERS ====== */
+function saveState(){
+  try{
+    localStorage.setItem(LS_KEYS.HIDE, hideAnswers ? '1' : '0');
+    localStorage.setItem(LS_KEYS.FILTER, JSON.stringify(filteredChapters || []));
+    localStorage.setItem(LS_KEYS.INITIAL_TIME, String(initialTime || 0));
+    const beepEnabledInput = document.getElementById('beep-enabled');
+    const beepStartInput = document.getElementById('beep-start');
+    localStorage.setItem(LS_KEYS.BEEP_ENABLED, beepEnabledInput ? (beepEnabledInput.checked ? '1' : '0') : '1');
+    localStorage.setItem(LS_KEYS.BEEP_START, beepStartInput ? String(beepStartInput.value) : '5');
+    localStorage.setItem(LS_KEYS.PARTICIPANTS, JSON.stringify(participants || []));
+    localStorage.setItem(LS_KEYS.HISTORY, JSON.stringify(historyIndices || []));
+    localStorage.setItem(LS_KEYS.USER_QUESTIONS, JSON.stringify(userQuestions || []));
+    localStorage.setItem(LS_KEYS.USER_MODE, userQuestionsMode ? '1' : '0');
+  }catch(e){ console.error('saveState:', e); }
+}
+
+function loadState(){
+  try{
+    const sHide = localStorage.getItem(LS_KEYS.HIDE);
+    hideAnswers = sHide === '1';
+
+    const sFiltered = localStorage.getItem(LS_KEYS.FILTER);
+    if(sFiltered) filteredChapters = JSON.parse(sFiltered) || [];
+
+    const sInitial = localStorage.getItem(LS_KEYS.INITIAL_TIME);
+    if(sInitial) { initialTime = parseInt(sInitial) || 0; timeLeft = initialTime; }
+
+    const beepEn = localStorage.getItem(LS_KEYS.BEEP_ENABLED);
+    const beepSt = localStorage.getItem(LS_KEYS.BEEP_START);
+
+    const savedParticipants = localStorage.getItem(LS_KEYS.PARTICIPANTS);
+    if(savedParticipants) participants = JSON.parse(savedParticipants) || [];
+
+    const savedHistory = localStorage.getItem(LS_KEYS.HISTORY);
+    if(savedHistory) historyIndices = JSON.parse(savedHistory) || [];
+
+    const savedUserQuestions = localStorage.getItem(LS_KEYS.USER_QUESTIONS);
+    if(savedUserQuestions) userQuestions = JSON.parse(savedUserQuestions) || [];
+    userQuestionsMode = localStorage.getItem(LS_KEYS.USER_MODE) === '1';
+
+    // restaurar timer inputs
+    const beepEnabledInput = document.getElementById('beep-enabled');
+    const beepStartInput = document.getElementById('beep-start');
+    if(beepEnabledInput && typeof beepEn !== 'undefined' && beepEn !== null) beepEnabledInput.checked = beepEn === '1';
+    if(beepStartInput && beepSt) beepStartInput.value = beepSt;
+
+    // aplicar modo
+    if(userQuestionsMode){
+      modeBadge.innerText = 'Modo: Questões do usuário';
+      remainingQuestions = userQuestions.map((q,i)=> ({...q,_idx:i}));
+    }else{
+      modeBadge.innerText = hideAnswers ? 'Modo: Sem resposta' : 'Modo: Normal';
+      if(filteredChapters && filteredChapters.length > 0){
+        remainingQuestions = allQuestions
+          .map((q,i)=> ({...q,_idx:i}))
+          .filter(q => filteredChapters.includes(q.chapter))
+          .map(q => ({chapter:q.chapter, question:q.question, _idx:q._idx}));
+      } else {
+        remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i}));
+      }
+    }
+
+    // remover itens já sorteados (historyIndices)
+    if(historyIndices.length > 0){
+      remainingQuestions = remainingQuestions.filter(q => !historyIndices.includes(q._idx));
+      historyList.innerHTML = '';
+      historyIndices.forEach(idx => {
+        const q = userQuestionsMode ? userQuestions[idx] : allQuestions[idx];
+        if(q){
+          const li = document.createElement('li');
+          li.innerText = hideAnswers ? stripAnswer(q.question) : q.question;
+          historyList.appendChild(li);
+        }
+      });
+      historyList.scrollTop = historyList.scrollHeight;
+    }
+    renderParticipants();
+    renderUserQuestionsList();
+  }catch(e){ console.error('loadState:', e); }
+}
+
+/* ===== MENU / MODO / BÍBLIA ===== */
+function toggleMenu(){
+  const m = document.getElementById('top-menu');
+  const shown = m.style.display === 'block';
+  m.style.display = shown ? 'none' : 'block';
+  m.setAttribute('aria-hidden', shown ? 'true' : 'false');
+}
+
+function setModeNoAnswer(){
+  hideAnswers = !hideAnswers;
+  modeBadge.innerText = hideAnswers ? 'Modo: Sem resposta' : 'Modo: Normal';
+  toggleMenu();
+  questionBox.innerText = hideAnswers ? "Modo sem resposta ativado. Ao sortear, as perguntas aparecerão sem a resposta." : "Modo normal ativado.";
+  questionBox.classList.add('show');
+  const revealBtn = document.getElementById('reveal-btn');
+  revealBtn.style.display = (hideAnswers && lastQuestionObj) ? 'inline-block' : 'none';
+  saveState();
+}
+
+function openBible(){
+  try{ toggleMenu(); }catch(e){}
+  window.open('https://www.bibliaon.com/','_blank','noopener');
+  hideAnswers = false;
+  modeBadge.innerText = 'Modo: Bíblia';
+  saveState();
+}
+
+function openUserQuestionsPanel(){
+  document.getElementById('user-questions-modal').style.display = 'flex';
+  renderUserQuestionsList();
+  toggleMenu();
+}
+function closeUserQuestionsPanel(){
+  document.getElementById('user-questions-modal').style.display = 'none';
+}
+function addUserQuestion(){
+  const chapter = document.getElementById('user-chapter').value.trim();
+  const question = document.getElementById('user-question').value.trim();
+  if(!chapter || !question) return alert('Preencha capítulo e pergunta!');
+  userQuestions.push({chapter, question});
+  document.getElementById('user-chapter').value = '';
+  document.getElementById('user-question').value = '';
+  renderUserQuestionsList();
+  saveState();
+}
+function renderUserQuestionsList(){
+  const ul = document.getElementById('user-questions-list');
+  if(!ul) return;
+  ul.innerHTML = '';
+  if(userQuestions.length === 0){
+    ul.innerHTML = '<li style="opacity:0.6;">Nenhuma questão inserida.</li>';
+    return;
+  }
+  userQuestions.forEach((q,i)=>{
+    const li = document.createElement('li');
+    li.textContent = `Capítulo ${q.chapter}: ${q.question}`;
+    li.innerHTML += ` <button class="remove-btn" style="font-size:0.8em;" onclick="removeUserQuestion(${i})">❌</button>`;
+    ul.appendChild(li);
+  });
+}
+function removeUserQuestion(idx){
+  userQuestions.splice(idx,1);
+  renderUserQuestionsList();
+  saveState();
+}
+function setUserQuestionsMode(){
+  if(userQuestions.length === 0) return alert('Insira pelo menos uma questão!');
+  userQuestionsMode = true;
+  modeBadge.innerText = 'Modo: Questões do usuário';
+  closeUserQuestionsPanel();
+  questionBox.innerText = "Modo ativado: apenas questões inseridas serão sorteadas.";
+  questionBox.classList.add('show');
+  // reset histórico para modo usuário
+  historyIndices = [];
+  remainingQuestions = userQuestions.map((q,i)=> ({...q,_idx:i}));
+  saveState();
+  historyList.innerHTML = '';
+  document.getElementById('reveal-btn').style.display = (hideAnswers && lastQuestionObj) ? 'inline-block' : 'none';
+}
+
+/* remove menu se clicar fora */
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('top-menu');
+  const hamb = document.querySelector('.hamburger');
+  if(!menu) return;
+  if(menu.style.display === 'block' && !menu.contains(e.target) && !hamb.contains(e.target)){
+    menu.style.display = 'none';
+    menu.setAttribute('aria-hidden','true');
+  }
+});
+
+/* remove resposta de uma pergunta (texto antes da primeira aspa) */
+function stripAnswer(text){
+  if(!text) return text;
+  const quoteChars = ['“','"','«','‹','„','‚','\''];
+  let indices = quoteChars.map(q=> text.indexOf(q)).filter(i=>i>=0);
+  if(indices.length === 0) return text;
+  const minIdx = Math.min(...indices);
+  return text.slice(0, minIdx).trim();
+}
+
+/* ===== FILTRO DE CAPÍTULOS ===== */
+function generateChapterCheckboxes(){
+  const container = document.getElementById("chapter-filter-container");
+  container.innerHTML = "";
+
+  const allLabel = document.createElement("label");
+  allLabel.innerHTML = `<input type="checkbox" id="chapter-all" value="all"> Todos`;
+  container.appendChild(allLabel);
+
+  const chapters = [...new Set(allQuestions.map(q=>q.chapter))].sort((a,b)=>a-b);
+  chapters.forEach(ch=>{
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" class="chapter-item" value="${ch}"> Capítulo ${ch}`;
+    container.appendChild(label);
+  });
+
+  const applyBtn = document.createElement("button");
+  applyBtn.textContent="Aplicar";
+  applyBtn.className = 'small-btn';
+  applyBtn.onclick=applyFilter;
+  container.appendChild(applyBtn);
+
+  // behavior
+  setTimeout(()=> {
+    const allChk = document.getElementById('chapter-all');
+    if(allChk){
+      allChk.addEventListener('change', ()=> {
+        const items = document.querySelectorAll('#chapter-filter-container .chapter-item');
+        items.forEach(i=> i.checked = allChk.checked);
+        if(allChk.checked){
+          filteredChapters = [];
+          // rebuild remainingQuestions from allQuestions minus history
+          remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i})).filter(q=> !historyIndices.includes(q._idx));
+        }
+        saveState();
+      });
+    }
+
+    // if loaded filter exists, apply checkboxes
+    if(filteredChapters && filteredChapters.length > 0){
+      const items = document.querySelectorAll('#chapter-filter-container .chapter-item');
+      items.forEach(i=> i.checked = filteredChapters.includes(i.value));
+      const allChk2 = document.getElementById('chapter-all');
+      if(allChk2) allChk2.checked = items.length === document.querySelectorAll('#chapter-filter-container input.chapter-item:checked').length;
+    }
+  },0);
+}
+
+function toggleFilterPanel(){
+  const panel = document.getElementById("chapter-filter-container");
+  panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+}
+
+function applyFilter(){
+  const allChk = document.getElementById('chapter-all');
+  if(allChk && allChk.checked){
+    filteredChapters = [];
+    remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i})).filter(q=> !historyIndices.includes(q._idx));
+    toggleFilterPanel();
+    questionBox.innerText = "Filtro 'Todos' aplicado: usando todas as questões.";
+    questionBox.classList.add("show");
+    saveState();
+    return;
+  }
+
+  const checkboxes = document.querySelectorAll("#chapter-filter-container input.chapter-item");
+  filteredChapters = Array.from(checkboxes).filter(ch=>ch.checked).map(ch=>ch.value);
+  // build remainingQuestions using filter and excluding history
+  if(filteredChapters.length > 0){
+    remainingQuestions = allQuestions
+      .map((q,i)=> ({...q,_idx:i}))
+      .filter(q=> filteredChapters.includes(q.chapter) && !historyIndices.includes(q._idx));
+    const allChk2 = document.getElementById('chapter-all');
+    if(allChk2) allChk2.checked = false;
+  } else {
+    remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i})).filter(q=> !historyIndices.includes(q._idx));
+    const allChk2 = document.getElementById('chapter-all');
+    if(allChk2) allChk2.checked = true;
+  }
+
+  toggleFilterPanel();
+  questionBox.innerText = filteredChapters.length > 0 ? "Filtro aplicado! Clique em sortear." : "Nenhum capítulo selecionado: usando todas as questões.";
+  questionBox.classList.add("show");
+  saveState();
+}
+
+/* ===== SORTEIO ===== */
+function drawQuestion(){
+  let sourceQuestions = userQuestionsMode ? userQuestions : allQuestions;
+  let sourceRemaining = userQuestionsMode
+    ? remainingQuestions
+    : remainingQuestions;
+  if(sourceRemaining.length === 0){
+    questionBox.innerText="✅ Todas as questões foram sorteadas! Clique em 'Resetar Questões' para começar de novo.";
+    questionBox.classList.add("show");
+    document.getElementById('reveal-btn').style.display = 'none';
+    return;
+  }
+  const randomIndex = Math.floor(Math.random()*sourceRemaining.length);
+  const picked = sourceRemaining.splice(randomIndex,1)[0]; // {chapter, question, _idx}
+  lastQuestionObj = picked;
+  historyIndices.push(picked._idx);
+
+  const displayText = hideAnswers ? stripAnswer(picked.question) : picked.question;
+  questionBox.innerText = displayText;
+  questionBox.classList.add("show");
+
+  const li = document.createElement("li");
+  li.innerText = displayText;
+  historyList.appendChild(li);
+  historyList.scrollTop = historyList.scrollHeight;
+
+  const revealBtn = document.getElementById('reveal-btn');
+  revealBtn.style.display = (hideAnswers && lastQuestionObj) ? 'inline-block' : 'none';
+
+  saveState();
+}
+
+function revealAnswer(){
+  if(!lastQuestionObj) return;
+  questionBox.innerText = lastQuestionObj.question;
+  questionBox.classList.add('show');
+  document.getElementById('reveal-btn').style.display = 'none';
+}
+
+/* ===== RESET ===== */
+function resetQuestions(){
+  if(!confirm('Resetar tudo? Isso limpará histórico, participantes, filtros e configurações.')) return;
+  historyIndices = [];
+  filteredChapters = [];
+  participants = [];
+  hideAnswers = false;
+  initialTime = 0;
+  timeLeft = 0;
+  lastQuestionObj = null;
+  userQuestionsMode = false;
+  remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i}));
+  historyList.innerHTML = '';
+  questionBox.innerText="🔄 Questões resetadas. Clique em sortear!";
+  questionBox.classList.add("show");
+  document.getElementById('reveal-btn').style.display = 'none';
+  modeBadge.innerText = 'Modo: Normal';
+  updateTimerDisplay();
+  renderParticipants();
+  try{
+    Object.values(LS_KEYS).forEach(k=> localStorage.removeItem(k));
+  }catch(e){ console.error(e); }
+  const allChk = document.getElementById('chapter-all');
+  if(allChk) allChk.checked = true;
+  const items = document.querySelectorAll('#chapter-filter-container .chapter-item');
+  items.forEach(i=> i.checked = false);
+  userQuestions = [];
+  renderUserQuestionsList();
+}
+
+/* ===== TIMER ===== */
+const timerDisplay = document.getElementById("timer-display");
+const alarm = document.getElementById("alarm-sound");
+let audioCtx = null;
+
+function playBeep(duration = 120, freq = 880, type = 'sine'){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = 0.0001;
+    o.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    g.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
+    o.start(now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + duration/1000);
+    o.stop(now + duration/1000 + 0.02);
+  }catch(e){}
+}
+
+function updateTimerDisplay(){
+  const minutes = String(Math.floor(timeLeft/60)).padStart(2,"0");
+  const seconds = String(timeLeft%60).padStart(2,"0");
+  timerDisplay.innerText = `${minutes}:${seconds}`;
+}
+
+function setCustomTimer(){
+  const input = document.getElementById("custom-time");
+  const seconds = parseInt(input.value);
+  if(isNaN(seconds) || seconds <= 0){ alert("Digite um valor válido em segundos!"); return; }
+  timeLeft = seconds;
+  initialTime = seconds;
+  updateTimerDisplay();
+  saveState();
+}
+
+function setQuickTime(seconds){
+  timeLeft = seconds;
+  initialTime = seconds;
+  updateTimerDisplay();
+  saveState();
+}
+
+function startTimer(){
+  if(isRunning) return;
+  if(timeLeft <= 0){ if(initialTime > 0) timeLeft = initialTime; else return; }
+  isRunning = true;
+  timerDisplay.classList.add('running');
+  timer = setInterval(()=> {
+    timeLeft--;
+    updateTimerDisplay();
+
+    const beepEnabled = document.getElementById('beep-enabled') ? document.getElementById('beep-enabled').checked : true;
+    const beepStart = document.getElementById('beep-start') ? parseInt(document.getElementById('beep-start').value) || 5 : 5;
+
+    if(beepEnabled && timeLeft > 0 && timeLeft <= beepStart){
+      playBeep(110, 880);
+    }
+
+    if(timeLeft <= 0){
+      clearInterval(timer);
+      isRunning = false;
+      timerDisplay.classList.remove('running');
+      timerDisplay.classList.add('finished');
+      try{ alarm.currentTime = 0; alarm.play(); }catch(e){}
+      setTimeout(()=> timerDisplay.classList.remove('finished'), 3000);
+      timeLeft = initialTime;
+      updateTimerDisplay();
+    }
+  },1000);
+}
+
+function pauseTimer(){
+  clearInterval(timer);
+  isRunning = false;
+  timerDisplay.classList.remove('running');
+}
+
+function resetTimer(){
+  clearInterval(timer);
+  isRunning = false;
+  timeLeft = initialTime;
+  updateTimerDisplay();
+  timerDisplay.classList.remove('running');
+}
+
+/* ===== TEMA ===== */
+function toggleTheme(){
+  const body = document.body;
+  const btn = document.querySelector('.theme-toggle');
+  if(body.classList.contains('dark')){
+    body.classList.replace('dark','light');
+    btn.textContent = '☀️';
+    localStorage.setItem('theme','light');
+  } else {
+    body.classList.replace('light','dark');
+    btn.textContent = '🌙';
+    localStorage.setItem('theme','dark');
+  }
+}
+
+/* ===== PARTICIPANTES ===== */
+function addParticipant(){
+  const input = document.getElementById('participant-name');
+  const name = input.value.trim();
+  if(!name) return alert('Digite um nome válido!');
+  if(participants.some(p=>p.name === name)) return alert('Participante já cadastrado!');
+  participants.push({name, points:0});
+  input.value = '';
+  renderParticipants();
+  saveState();
+}
+
+function renderParticipants(){
+  const list = document.getElementById('participants-list');
+  list.innerHTML = '';
+  if(participants.length === 0){
+    const li = document.createElement('li');
+    li.style.opacity='0.6';
+    li.textContent = 'Nenhum participante.';
+    list.appendChild(li);
+    return;
+  }
+  participants.forEach((p,index)=>{
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span><strong>${p.name}</strong> - Pontos: ${p.points}</span>
+      <span>
+        <button class="participant-btn1" onclick="addPoints(${index},-5)">-5</button>
+        <button class="participant-btn" onclick="addPoints(${index},5)">+5</button>
+        <button class="participant-btn" onclick="addPoints(${index},10)">+10</button>
+        <button class="remove-btn" onclick="removeParticipant(${index})">❌</button>
+      </span>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function addPoints(index, amount=5){
+  participants[index].points += amount;
+  renderParticipants();
+  saveState();
+}
+
+function removeParticipant(index){
+  if(!confirm('Remover participante?')) return;
+  participants.splice(index,1);
+  renderParticipants();
+  saveState();
+}
+
+/* ===== DOWNLOAD PDF ===== */
+function downloadPdf(){
+  const w = window.open('','_blank','noopener');
+  const style = `<style>body{font-family: Arial, Helvetica, sans-serif; padding:20px;} h1{font-size:18px;} li{margin:6px 0;}</style>`;
+  let html = `<html><head><title>Questões - Levítico</title>${style}</head><body><h1>Questões - Levítico</h1><ol>`;
+  allQuestions.forEach(q=> html += `<li><strong>Capítulo ${q.chapter}:</strong> ${q.question.replace(/</g,'&lt;')}</li>`);
+  html += `</ol></body></html>`;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(()=> w.print(), 500);
+}
+
+/* ===== INICIALIZAÇÃO ===== */
+window.addEventListener('load', ()=>{
+  // tema
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.body.classList.add(savedTheme);
+  const btn = document.querySelector('.theme-toggle');
+  btn.textContent = savedTheme === 'dark' ? '🌙' : '☀️';
+
+  // set defaults for remainingQuestions with idx
+  remainingQuestions = allQuestions.map((q,i)=> ({...q,_idx:i}));
+
+  // gerar checkboxes e carregar estado
+  generateChapterCheckboxes();
+  loadState();
+
+  // se houver histórico, remainingQuestions já foi filtrado na loadState
+  updateTimerDisplay();
+  modeBadge.innerText = hideAnswers ? 'Modo: Sem resposta' : modeBadge.innerText;
+});
+
+/* persistir quando inputs do bipe mudarem */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const beepEnabledInput = document.getElementById('beep-enabled');
+  const beepStartInput = document.getElementById('beep-start');
+  if(beepEnabledInput) beepEnabledInput.addEventListener('change', saveState);
+  if(beepStartInput) beepStartInput.addEventListener('change', saveState);
+});
+</script>
+
+</body>
+</html>
